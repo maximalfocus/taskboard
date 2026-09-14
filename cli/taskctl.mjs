@@ -3,6 +3,7 @@
 import { execFile, spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -476,6 +477,27 @@ async function execute(parsed, overrides) {
   }
 }
 
+// Same detection order as peerreview-skills/scripts/select-peer.sh: pi, then Codex, then Claude Code.
+function detectAgent(env) {
+  const explicit = env.TASKBOARD_AGENT?.trim().toLowerCase();
+  if (explicit) return explicit;
+  if (env.PI_CODING_AGENT === "true" || env.AI_AGENT === "pi") return "pi";
+  if (env.CODEX_CI || env.CODEX_THREAD_ID) return "codex";
+  if (env.CLAUDECODE || env.CLAUDE_CODE_ENTRYPOINT) return "claude";
+  return null;
+}
+
+function agentIdentityHeaders(env) {
+  const agent = detectAgent(env);
+  if (!agent) return {};
+  const host = os.hostname().split(".")[0].toLowerCase();
+  const displayAgent = agent === "pi" ? "pi" : `${agent[0].toUpperCase()}${agent.slice(1)}`;
+  return {
+    "x-taskboard-agent-id": `${agent}-${host}`.replace(/[^a-z0-9._-]+/g, "-"),
+    "x-taskboard-agent-name": encodeURIComponent(`${displayAgent} @ ${host}`),
+  };
+}
+
 function createApiClient(overrides, {
   url: explicitBaseUrl,
   windowsTransport = false,
@@ -492,6 +514,7 @@ function createApiClient(overrides, {
   }
 
   const baseUrl = normalizeBaseUrl(explicitBaseUrl ?? DEFAULT_API_URL);
+  const agentHeaders = agentIdentityHeaders(overrides.env ?? process.env);
 
   async function sendRequest(pathname, createInit) {
     let response;
@@ -503,6 +526,7 @@ function createApiClient(overrides, {
         headers: {
           accept: "application/json",
           "x-taskboard-client": "taskctl",
+          ...agentHeaders,
           ...init.headers,
         },
       });
@@ -1090,9 +1114,14 @@ function recurrenceFromOptions(options) {
 
 function resolveThreadId(options, overrides) {
   const env = overrides.env ?? process.env;
-  const value = options["thread-id"] ?? env.CODEX_THREAD_ID;
+  const value = options["thread-id"]
+    ?? env.CODEX_THREAD_ID
+    ?? env.CLAUDE_CODE_SESSION_ID
+    ?? env.PI_SESSION_ID;
   if (typeof value !== "string" || value.trim().length === 0) {
-    throw usageError("Codex conversation attribution requires --thread-id or CODEX_THREAD_ID");
+    throw usageError(
+      "Conversation attribution requires --thread-id, CODEX_THREAD_ID, CLAUDE_CODE_SESSION_ID, or PI_SESSION_ID",
+    );
   }
   const threadId = value.trim();
   if (threadId.length > 256) {

@@ -13,7 +13,7 @@ export function ActorAvatar({
       aria-hidden="true"
       title={actor.name}
     >
-      {actor.type === "agent" ? (
+      {actor.type === "agent" && actor.id.startsWith("codex") ? (
         <img
           className="actor-avatar-image actor-avatar-agent-image"
           src="codex-agent-logo.png"
