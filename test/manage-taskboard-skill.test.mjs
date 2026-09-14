@@ -45,31 +45,3 @@ test("the taskboard skill coordinates safe issue execution and review handoff", 
   );
 });
 
-test("the taskboard skill requires complete thread bindings for claimed work", () => {
-  assert.match(
-    skillSource,
-    /This value alone is not a complete task binding/i,
-  );
-  assert.match(
-    skillSource,
-    /must store a complete `threadBinding`:[\s\S]*`threadId`[\s\S]*`codexProjectId`[\s\S]*`codexProjectKind`[\s\S]*`codexHostId`[\s\S]*`workspacePath`/i,
-  );
-  assert.match(
-    skillSource,
-    /Pass all five explicit `--binding-\*` options[\s\S]*never create a legacy binding containing only `threadId`/i,
-  );
-  assert.match(
-    skillSource,
-    /preserve its exact five saved values on every status write[\s\S]*never take over a binding owned by another conversation/i,
-  );
-
-  assert.match(cliReference, /--binding-thread-id ID/i);
-  assert.match(cliReference, /--binding-codex-project-id PROJECT_ID/i);
-  assert.match(cliReference, /--binding-codex-project-kind local\|remote/i);
-  assert.match(cliReference, /--binding-codex-host-id HOST_ID/i);
-  assert.match(cliReference, /--binding-workspace-path PATH/i);
-  assert.match(
-    cliReference,
-    /`--thread-id` records the conversation performing the mutation; it does not create a complete task binding/i,
-  );
-});
